@@ -40,6 +40,7 @@ ansible-playbook -i hosts.inventory torrent.yml
  ```
 If you want to run just the tasks to update configuration:
 > All the configuration into `files/samba` will be dumped into `/etc/samba/`.
+
 > All the configuration into `files/deluge` will be dumped into `~/.config/deluge/`.
 ```
 ansible-playbook -i hosts.inventory nginx.yml  --tags deluge-conf,samba-conf
