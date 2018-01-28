@@ -1,0 +1,18 @@
+- name: General infrastructure
+  become: yes
+  tags: ['infrastructure']
+  import_tasks: infrastructure.yml
+
+- include_role:
+    name: a2ron.java8
+
+- name: Install OpenHAB2
+  become: yes
+  tags: ['openhab2']
+  import_tasks: openhab2.yml
+
+- name: Restore OpenHAB2 Backup
+  become: yes
+  tags: ['openhab', 'openhab2-backup']
+  import_tasks: openhab2-backup.yml
+  when: openhab_backup is defined

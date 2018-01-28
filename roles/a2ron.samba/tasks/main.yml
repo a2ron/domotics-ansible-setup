@@ -1,0 +1,40 @@
+---
+- name: Update sources
+  become: yes
+  apt: update_cache=yes cache_valid_time=86400
+  
+- name: Install Samba
+  become: yes
+  apt: pkg=samba state=installed
+
+- name: Check for config path "files/samba"
+  tags: 
+    'samba-conf'
+  local_action: stat path="files/samba"
+  register: result    
+
+- name: Add SMD shares for config 
+  become: yes
+  tags: 
+    'samba-conf'
+  copy:
+    src: files/samba/
+    dest: /etc/samba/
+  when: result.stat.exists
+
+- name: Samba | User
+  become: yes
+  tags: 
+    'samba-conf'
+  shell: 
+    (echo "{{ samba_pass }}"; echo "{{ samba_pass }}") | sudo smbpasswd -sa {{ ansible_ssh_user }}
+  changed_when: false
+  when: samba_user is defined  and samba_pass is defined
+
+- name: Restart smbd
+  become: true
+  tags: 
+    'samba-conf'
+  service:
+    name: smbd
+    state: restarted

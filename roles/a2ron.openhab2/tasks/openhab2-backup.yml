@@ -1,0 +1,25 @@
+---
+- name: Copy openHAB2 backup
+  copy: 
+    src: "{{ openhab_backup }}"
+    dest: /var/lib/openhab2/
+    owner: '{{ openhab_user }}'
+
+- name: Stop OpenHAB 2
+  service:
+    name: openhab2
+    state: stopped
+
+- name: Restore openHAB2 backup
+  shell: yes 'y' | openhab-cli restore /var/lib/openhab2/oh2.bk.zip 
+
+- name: Create directory /var/lib/openhab2/tmp
+  file: 
+    path: /var/lib/openhab2/tmp 
+    state: directory
+    owner: '{{ openhab_user }}'
+
+- name: Start OpenHAB 2
+  service:
+    name: openhab2
+    state: started

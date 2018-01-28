@@ -1,0 +1,14 @@
+---
+- name: Update apt
+  apt: update_cache=yes cache_valid_time=86400
+- name: Install main packages for infrastructure
+  apt: pkg={{item}} state=installed
+  with_items:
+    - apt-transport-https
+    - git
+    - lsof
+    - ntp
+    - python-lxml
+    - ssmtp
+    - unzip
+    - vim

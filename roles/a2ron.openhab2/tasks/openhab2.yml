@@ -1,0 +1,18 @@
+# See http://docs.openhab.org/installation/linux.html#package-repository-installation
+- name: Add OpenHAB 2 repo
+  apt_repository: repo='deb https://dl.bintray.com/openhab/apt-repo2 stable main' state=present
+
+- name: Add OpenHAB 2 beta key
+  apt_key: url=https://bintray.com/user/downloadSubjectPublicKey?username=openhab
+
+- name: Update sources
+  apt: update_cache=yes cache_valid_time=86400
+
+- name: Install OpenHAB 2
+  apt: name=openhab2 force=yes
+
+- name: Start and enable OpenHAB 2 (Ubuntu)
+  service:
+    name: openhab2
+    state: started
+    enabled: yes

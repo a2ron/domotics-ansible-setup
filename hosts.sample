@@ -1,0 +1,8 @@
+[hosts]
+# IP:POST ansible_ssh_user=<USER> ansible_ssh_pass=<PASSWORD> ansible_sudo_pass=<PASSWORD>
+# localhost:2222 ansible_ssh_user=vagrant
+
+[hosts:vars]
+samba_pass = <PASSWORD> # password for samba user <ansible_ssh_user>
+openhab_user = openhab # user who runs openhab, commonly "openhab"
+openhab_backup = /path/to/openhab2-backup-zip

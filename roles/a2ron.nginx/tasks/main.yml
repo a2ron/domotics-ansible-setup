@@ -1,0 +1,48 @@
+---
+- name: Update sources
+  become: yes
+  apt: update_cache=yes cache_valid_time=86400
+
+- name: Install Nginx packages
+  become: true
+  apt: pkg={{item}} state=installed
+  with_items:
+    - nginx
+
+- name: Check for config path "files/nginx/"
+  tags: 
+    'nginx-conf'
+  local_action: stat path="files/nginx/"
+  register: result    
+
+- name: Check for config path "files/nginx/sites-enabled"
+  tags: 
+    'nginx-conf'
+  local_action: stat path="files/nginx/sites-enabled"
+  register: result_sites_enabled    
+
+- name: Delete default sites-enabled
+  become: true
+  tags: 
+    'nginx-conf'
+  file:  
+    path: /etc/nginx/sites-enabled/
+    state: absent
+  when: result_sites_enabled.stat.exists
+
+- name: Copy nginx files
+  become: true
+  tags: 
+    'nginx-conf'
+  copy: 
+    src: files/nginx/
+    dest: /etc/nginx/    
+  when: result.stat.exists
+
+- name: Restart Nginx
+  become: true
+  tags: 
+    'nginx-conf'
+  service:
+    name: nginx
+    state: restarted
