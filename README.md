@@ -8,6 +8,7 @@ ansible-playbook -i hosts.inventory openhab2.yml
  ```
 If you want to run just the tasks to update configuration:
 > You may want to set ansible var `openhab_backup`, path to openhab backup zip.
+
 ```
 ansible-playbook -i hosts.inventory openhab2.yml  --tags openhab2-backup
 ```
@@ -30,6 +31,7 @@ ansible-playbook -i hosts.inventory nginx.yml
  ```
 If you want to run just the tasks to update configuration:
 > All the configuration into `files/nginx` will be dumped into `/etc/nginx/`.
+
 ```
 ansible-playbook -i hosts.inventory nginx.yml  --tags nginx-conf
 ```
@@ -42,6 +44,7 @@ If you want to run just the tasks to update configuration:
 > All the configuration into `files/samba` will be dumped into `/etc/samba/`.
 
 > All the configuration into `files/deluge` will be dumped into `~/.config/deluge/`.
+
 ```
 ansible-playbook -i hosts.inventory nginx.yml  --tags deluge-conf,samba-conf
 ```
