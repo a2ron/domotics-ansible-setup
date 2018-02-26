@@ -1,0 +1,126 @@
+---
+############################################################
+
+- hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: Install python2 for Ansible
+      become: yes
+      raw: bash -c "test -e /usr/bin/python || (apt -qqy update && apt install -qqy python-minimal)"
+      register: output
+      changed_when: output.stdout != ""
+
+- hosts: all
+  vars:
+    - install_path: "{{ ansible_env.HOME }}/alexa"
+    - log_path: "/var/log/startsample"
+
+  tasks:
+
+    - name: "Clean {{ install_path }}"
+      become: yes
+      file:
+        path: "{{ install_path }}"
+        state: absent
+
+    - name: "Create {{ install_path }}"
+      file:
+        path: "{{ install_path }}"
+        state: directory
+
+    - name: Provision files
+      tags: run
+      template:
+        src: files/alexa/{{ item }}
+        dest: "{{ install_path }}/{{ item }}"
+        mode: u+x
+      with_items:
+        - config.txt
+        - ensure-startsample-alive.sh
+
+
+    - name: "Download the install script"
+      get_url:
+        url: "https://raw.githubusercontent.com/alexa/avs-device-sdk/master/tools/RaspberryPi/setup.sh"
+        dest: "{{ install_path }}/setup.sh"
+
+
+    - name: "Check is pexpect installed"
+      shell: "command -v pexpect >/dev/null 2>&1"
+      register: pexpect_exists
+      ignore_errors: yes
+
+    - name: Update packages repo
+      apt: update_cache=yes cache_valid_time=86400
+
+    - name: "Install OS packages"
+      become: yes
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - python-pip
+      when: pexpect_exists != 0
+
+    - name: "Install pip packages"
+      become: yes
+      pip:
+        name: pexpect
+      when: pexpect_exists != 0
+
+    - name: "Run the setup script (max. 60 minutes, have a coffee ☕)"
+      become: yes
+      args:
+        chdir : "{{ install_path }}"
+      expect:
+        command: "bash setup.sh config.txt"
+        responses:
+          you need to agree to abide by if you choose to install the External Dependencies:
+            - AGREE
+          Press RETURN to review the license agreement and update the files:
+            - \n
+          More:
+            - \n
+          Do you accept this license agreement? [yes or no]:
+            - yes
+        timeout: 3600
+
+    - name: "Generate an authorization token. "
+      become: yes
+      args:
+        chdir : "{{ install_path }}"
+      command: "bash startauth.sh"
+      register: auth_result
+
+############################################################
+
+    - name: "Ensure /var/log/startsample/ exists"
+      become: yes
+      file:
+        path: "/var/log/startsample/"
+        state: directory
+
+    - name: "Install ensure-startsample-alive crontab job for every minute"
+      tags: cron
+      cron:
+        name: "ensure-startsample-alive crontab job for every minute"
+        job: "{{ install_path }}/ensure-startsample-alive.sh -r"
+        user: "{{ ansible_ssh_user }}"
+
+    - name: "Install ensure-startsample-alive crontab job for reboot"
+      tags: cron
+      cron:
+        name: "ensure-startsample-alive crontab job for reboot"
+        job: "{{ install_path }}/ensure-startsample-alive.sh -r"
+        user: "{{ ansible_ssh_user }}"
+        special_time: reboot
+
+    - name: "Run"
+      tags: run
+      shell: "bash {{ install_path }}/ensure-startsample-alive.sh -r"
+      async: 9999999
+      register: run_result
+
+    - name: "OUTPUT"
+      tags: run
+      debug: var=run_result.stdout_lines
