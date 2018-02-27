@@ -9,4 +9,3 @@ openhab2.backup
 .DS_Store
 .idea
 files/alexa/config.txt
-.ignore.*
