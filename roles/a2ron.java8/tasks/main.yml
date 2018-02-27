@@ -3,15 +3,22 @@
   become: yes
   apt: update_cache=yes cache_valid_time=86400
 
-- name: Add Java repo
+
+- name: Add Java repo (for debian/jessie64)
   become: yes
   apt_repository: repo='deb http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main' state=present
 
-- name: Add Java repo (deb-src)
+
+- name: Add Java repo (for debian/jessie64) (deb-src)
   become: yes
   apt_repository: repo='deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main' state=present
 
-- name: Add Java key
+- name: Add Java repo
+  become: yes
+  apt_repository: repo='ppa:webupd8team/java' state=present
+  retries: 5
+
+- name: Add Java key (for raspbian lite)
   become: yes
   apt_key: 
     keyserver: hkp://keyserver.ubuntu.com:80
