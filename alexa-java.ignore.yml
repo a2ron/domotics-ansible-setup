@@ -1,0 +1,251 @@
+---
+############################################################
+
+- hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: Install python2 for Ansible
+      become: yes
+      raw: bash -c "test -e /usr/bin/python || (apt -qqy update && apt install -qqy python-minimal)"
+      register: output
+      changed_when: output.stdout != ""
+
+- hosts: all
+
+  vars:
+    install_vars_keys : ["ProductID", "ClientID", "ClientSecret"]
+    hash_version_for_rpi: "9ba3959105014bc9a630169bed5bbbd68b840e5a"
+    hash_version_for_no_rpi: "de47de78de8320690ac3a22622c49c815fd8a9a1"
+
+  pre_tasks:
+
+    - name: Check is Java installed
+      shell: command -v java >/dev/null 2>&1
+      register: java_exists
+      ignore_errors: yes
+
+  roles:
+    - role: a2ron.java8
+      when: java_exists.rc != 0
+
+  tasks: 
+
+    - name: Copy alexa runtime scripts
+      tags: 
+        - install
+        - run
+      copy: 
+        src: files/{{ item }}
+        dest: "{{ ansible_env.HOME }}/{{ item }}"
+        mode: u+x
+      with_items:
+        - keep-alive-alexa.job.sh
+        - alexa-cli.sh
+
+    - name: "Kill alexa processes"
+      become: yes
+      tags: 
+        - repo
+        - run
+      command: "bash -c '. alexa-cli.sh && psKill {{ item }}'"
+      register: kill_result
+      failed_when: kill_result.rc != -9
+      with_items:
+        - wakeWordAgent
+        - bin/www
+        - javaclient
+      args:
+        chdir : "{{ ansible_env.HOME }}"
+
+    - name: Install OS packages
+      become: yes
+      tags: 
+        - infra
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - git
+        - python-pip
+
+    - name: "Clean {{ ansible_env.HOME }}/alexa"
+      become: yes
+      tags: 
+        - repo
+      file: 
+        path: "{{ ansible_env.HOME }}/alexa"
+        state: absent
+
+    - name: "Clone alexa-avs-sample-app.git repo"
+      tags: 
+        - repo
+      git:
+        repo: "https://github.com/a2ron/alexa-avs-sample-app.git"
+        dest: "{{ ansible_env.HOME }}/alexa"
+        update: no
+        version: "{{ hash_version_for_rpi if rpi is defined and rpi == True  else hash_version_for_no_rpi }}"
+      retries: 5
+
+    - name: "Update the install script with your credentials"
+      tags: 
+        - repo
+      replace:
+        path: "{{ ansible_env.HOME }}/alexa/automated_install.sh"
+        regexp: "^{{ item }}=.*$"
+        replace: "{{ item }}={{ install_vars[item] }}"
+        backup: yes
+      with_items: 
+        - "{{ install_vars_keys }}"
+
+############################################################
+
+    - name: "Wait a bit for apt lock free"
+      tags: infra
+      command: "sleep 10"
+
+    - name: Update packages repo
+      tags: 
+        - infra
+      apt: update_cache=yes cache_valid_time=86400
+
+    - name: Install pip packages
+      become: yes
+      tags: 
+        - infra
+      pip:
+        name: pexpect
+
+    - name: "Check is nvm-install.sh present"
+      file:
+        path: "{{ ansible_env.HOME }}/nvm-install.sh"
+        state: file
+      register: nvm_install_file
+      ignore_errors: yes
+
+    - name: "Get nvm"
+      tags: 
+        - infra
+        - infra-nvm
+      get_url:
+        url: "https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh"
+        dest: "{{ ansible_env.HOME }}/nvm-install.sh"
+      when: nvm_install_file.state != "file"
+
+    - name: Check is nvm installed
+      shell: ". {{ ansible_env.HOME }}/.nvm/nvm.sh && command -v nvm >/dev/null 2>&1"
+      register: nvm_exists
+      ignore_errors: yes
+
+    - name: "Install nvm"
+      tags: 
+        - infra
+        - infra-nvm
+      shell: "bash {{ ansible_env.HOME }}/nvm-install.sh"
+      when: nvm_exists.rc != 0
+
+    - name: Check is node installed
+      shell: "command -v node >/dev/null 2>&1"
+      register: node_exists
+      ignore_errors: yes
+
+    - name: "Install node"
+      become: yes
+      tags: 
+        - infra
+        - infra-node
+      shell: ". {{ ansible_env.HOME }}/.nvm/nvm.sh && nvm install 8"     
+      register: "node_result"
+      when: node_exists.rc != 0
+
+############################################################
+
+    - name: "Ensure /home/root exists"
+      become: true
+      tags: 
+        - install
+      file: 
+        path: "/home/root"
+        state: directory
+
+    - name: Copy .asoundrc file
+      become: true
+      tags: 
+        - install
+      copy: 
+        src: files/.asoundrc
+        dest: "{{ item }}" 
+      with_items:
+        - /home/root/.asoundrc
+        - "{{ ansible_env.HOME }}/.asoundrc"
+
+    - name: "Run the install script. Have a coffe ☕! (max. 40 min)"
+      become: yes
+      tags: 
+        - install
+
+      expect:
+        command: "bash automated_install.sh"      
+        responses:
+          Do you agree to the terms:
+            - y
+          Do you have an Amazon developer account?:
+            - y
+          Is this information correct?:
+            - y
+          Which locale would you like to use?:
+            - 1 # TODO
+          Are you using 3.5mm jack or HDMI cable for audio output?:
+            - 1 # TODO
+          Do you want to enable "Alexa" Wake Word Detection?:
+            - "{{ wakeWordAgent if wakeWordAgent is defined else 'n' }}"
+        timeout: 2400
+
+      args:
+        chdir : "{{ ansible_env.HOME }}/alexa"
+      register: install_result
+
+    - name: "Setting {{ ansible_env.HOME }}/alexa ownership"
+      become: yes
+      tags: 
+        - repo
+      file: 
+        path: "{{ ansible_env.HOME }}/alexa"
+        state: directory 
+        owner: "{{ ansible_ssh_user }}"
+        recurse: yes
+
+############################################################
+
+    - name: "Ensure {{ ansible_env.HOME }}/alexa-logs exists"
+      tags: 
+        - run
+      file:
+        path: "{{ ansible_env.HOME }}/alexa-logs"
+        state: directory
+
+    - name: "Install Alexa Keep Alive crontab job for every minute"
+      tags: 
+        - run
+      cron:
+        name: "alexa keep-alive for every minute"
+        job: "bash {{ ansible_env.HOME }}/keep-alive-alexa.job.sh"
+        user: "{{ ansible_ssh_user }}"
+
+    - name: "Install Alexa Keep Alive crontab job for reboot"
+      tags:
+        - run
+      cron:
+        name: "alexa keep-alive for reboot"
+        job: "bash {{ ansible_env.HOME }}/keep-alive-alexa.job.sh"
+        user: "{{ ansible_ssh_user }}"
+        special_time: reboot
+
+    - name: "Run"
+      tags: run
+      shell: "bash {{ ansible_env.HOME }}/keep-alive-alexa.job.sh"
+      async: 9999999
+      register: run_result
+
+    - name: "OUTPUT"
+      tags: run
+      debug: var=run_result.stdout_lines

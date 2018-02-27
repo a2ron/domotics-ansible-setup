@@ -1,0 +1,17 @@
+---
+
+- hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: Install python2 for Ansible 
+      become: yes
+      raw: bash -c "test -e /usr/bin/python || (apt -qqy update && apt install -qqy python-minimal)"
+      register: output
+      changed_when: output.stdout != ""
+
+- hosts: all
+
+  roles:
+    - role: a2ron.deluged
+      tags: deluged
+      

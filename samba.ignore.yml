@@ -1,0 +1,47 @@
+---
+
+- hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: Install python2 for Ansible 
+      become: yes
+      raw: bash -c "test -e /usr/bin/python || (apt -qqy update && apt install -qqy python-minimal)"
+      register: output
+      changed_when: output.stdout != ""
+
+- hosts: all
+
+  pre_tasks:
+  - name: Ensure /Downloads exists 
+    tags: 
+      - always
+    become: yes
+    file: 
+      path: /Downloads 
+      state: directory
+      owner: "{{ ansible_ssh_user }}"
+
+  - name: Mount /mnt
+    tags: 
+      - always
+    become: yes
+    mount:
+      path: /mnt
+      src: /dev/sda7
+      fstype: ntfs
+      state: present
+
+  - name: Mount /mnt2
+    tags: 
+      - always
+    become: yes
+    mount:
+      path: /mnt2
+      src: /dev/sda1
+      fstype: ntfs
+      state: present
+      
+  roles:
+    - role: a2ron.samba
+      tags: samba
+      
