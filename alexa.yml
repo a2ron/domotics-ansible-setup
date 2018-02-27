@@ -37,6 +37,7 @@
       with_items:
         - config.txt
         - ensure-startsample-alive.sh
+        - log-cleaner.sh
 
 
     - name: "Download the install script"
@@ -105,6 +106,13 @@
       cron:
         name: "ensure-startsample-alive crontab job for every minute"
         job: "{{ install_path }}/ensure-startsample-alive.sh -r"
+        user: "{{ ansible_ssh_user }}"
+
+    - name: "Install log-cleaner crontab job for every minute"
+      tags: cron
+      cron:
+        name: "log-cleaner crontab job for every minute"
+        job: "{{ install_path }}/log-cleaner.sh"
         user: "{{ ansible_ssh_user }}"
 
     - name: "Install ensure-startsample-alive crontab job for reboot"
