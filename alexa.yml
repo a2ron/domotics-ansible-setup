@@ -18,18 +18,20 @@
   tasks:
 
     - name: "Clean {{ install_path }}"
+      tags: install
       become: yes
       file:
         path: "{{ install_path }}"
         state: absent
 
-    - name: "Create {{ install_path }}"
+    - name: "Ensure {{ install_path }} exists"
+      tags: install
       file:
         path: "{{ install_path }}"
         state: directory
 
     - name: Provision files
-      tags: run
+      tags: run, install
       template:
         src: files/alexa/{{ item }}
         dest: "{{ install_path }}/{{ item }}"
@@ -39,61 +41,22 @@
         - ensure-startsample-alive.sh
         - log-cleaner.sh
 
-
     - name: "Download the install script"
+      tags: install
       get_url:
         url: "https://raw.githubusercontent.com/alexa/avs-device-sdk/master/tools/RaspberryPi/setup.sh"
         dest: "{{ install_path }}/setup.sh"
 
 
-    - name: "Check is pexpect installed"
-      shell: "command -v pexpect >/dev/null 2>&1"
-      register: pexpect_exists
-      ignore_errors: yes
+########################################################################################################################
 
-    - name: Update packages repo
-      apt: update_cache=yes cache_valid_time=86400
-
-    - name: "Install OS packages"
+    - name: Install OS packages
       become: yes
       package:
         name: "{{ item }}"
         state: present
       with_items:
-        - python-pip
-      when: pexpect_exists != 0
-
-    - name: "Install pip packages"
-      become: yes
-      pip:
-        name: pexpect
-      when: pexpect_exists != 0
-
-    - name: "Run the setup script (max. 60 minutes, have a coffee ☕)"
-      become: yes
-      args:
-        chdir : "{{ install_path }}"
-      expect:
-        command: "bash setup.sh config.txt"
-        responses:
-          you need to agree to abide by if you choose to install the External Dependencies:
-            - AGREE
-          Press RETURN to review the license agreement and update the files:
-            - \n
-          More:
-            - \n
-          Do you accept this license agreement? [yes or no]:
-            - yes
-        timeout: 3600
-
-    - name: "Generate an authorization token. "
-      become: yes
-      args:
-        chdir : "{{ install_path }}"
-      command: "bash startauth.sh"
-      register: auth_result
-
-############################################################
+        - screen
 
     - name: "Ensure /var/log/startsample/ exists"
       become: yes
@@ -127,8 +90,16 @@
       tags: run
       shell: "bash {{ install_path }}/ensure-startsample-alive.sh -r"
       async: 9999999
-      register: run_result
 
-    - name: "OUTPUT"
-      tags: run
-      debug: var=run_result.stdout_lines
+
+########################################################################################################################
+
+    - name: "Manual step (1/2): Launch setup script."
+      tags: install
+      debug:
+        msg: "Launch in the target: cd {{ install_path }}; sudo bash setup.sh config.txt 2>&1 | tee setup.out"
+
+    - name: "Manual step (2/2): Generate an authorization token."
+      tags: install
+      debug:
+        msg: "Launch in the target: cd {{ install_path }}; sudo bash startauth.sh"
