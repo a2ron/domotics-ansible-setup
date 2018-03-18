@@ -31,7 +31,7 @@
         state: directory
 
     - name: Provision files
-      tags: run, install
+      tags: run, install, scripts, cron
       template:
         src: files/alexa/{{ item }}
         dest: "{{ install_path }}/{{ item }}"
@@ -39,13 +39,18 @@
       with_items:
         - config.txt
         - ensure-startsample-alive.sh
+        - set-max-volumen.sh
         - log-cleaner.sh
+        - alexa-heartbeat.sh
 
-    - name: "Download the install script"
+    - name: "Download installation scripts"
       tags: install
       get_url:
-        url: "https://raw.githubusercontent.com/alexa/avs-device-sdk/master/tools/RaspberryPi/setup.sh"
-        dest: "{{ install_path }}/setup.sh"
+        url: "https://raw.githubusercontent.com/a2ron/avs-device-sdk/master/tools/Install/{{ item }}"
+        dest: "{{ install_path }}/{{ item }}"
+      with_items:
+        - setup.sh
+        - pi.sh
 
 
 ########################################################################################################################
@@ -57,6 +62,14 @@
         state: present
       with_items:
         - screen
+        - python-pip
+        - wiringpi
+
+    - name: Install PIP packages
+      pip:
+        name: "{{ item }}"
+      with_items:
+        - requests
 
     - name: "Ensure /var/log/startsample/ exists"
       become: yes
@@ -70,6 +83,14 @@
         name: "ensure-startsample-alive crontab job for every minute"
         job: "{{ install_path }}/ensure-startsample-alive.sh -r"
         user: "{{ ansible_ssh_user }}"
+  
+    - name: "Install alexa-heartbeat crontab"
+      tags: cron
+      cron:
+        name: "alexa-heartbeat"
+        job: "{{ install_path }}/alexa-heartbeat.sh"
+        user: "{{ ansible_ssh_user }}"
+        special_time: reboot
 
     - name: "Install log-cleaner crontab job for every minute"
       tags: cron
@@ -83,6 +104,14 @@
       cron:
         name: "ensure-startsample-alive crontab job for reboot"
         job: "{{ install_path }}/ensure-startsample-alive.sh -r"
+        user: "{{ ansible_ssh_user }}"
+        special_time: reboot
+
+    - name: "Install crontab job to set max volumen on reboot"
+      tags: cron
+      cron:
+        name: "set max volumen on reboot"
+        job: "{{ install_path }}/set-max-volumen.sh"
         user: "{{ ansible_ssh_user }}"
         special_time: reboot
 
